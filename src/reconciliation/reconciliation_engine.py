@@ -432,9 +432,6 @@ def classify_reconciliation_status(
         & ~currency_mismatch
     )
 
-    # Rules are intentionally applied from lower to higher priority.
-    # Higher-priority classifications overwrite lower-priority ones.
-
     reconciliation.loc[
         amount_difference,
         "reconciliation_status",
@@ -488,30 +485,31 @@ def calculate_financial_exposure(
     """
     Calculate the financial amount potentially affected by each exception.
 
-    Financial exposure is intentionally different from the mathematical
+    Financial exposure represents the monetary value potentially affected
+    by an exception and is intentionally different from the mathematical
     difference between systems.
     """
 
-    source_amount = (
+    source_amount = pd.to_numeric(
         reconciliation[
             "converted_amount_usd_source"
-        ]
-        .abs()
-    )
+        ],
+        errors="coerce",
+    ).abs()
 
-    accounting_amount = (
+    accounting_amount = pd.to_numeric(
         reconciliation[
             "converted_amount_usd_accounting"
-        ]
-        .abs()
-    )
+        ],
+        errors="coerce",
+    ).abs()
 
-    absolute_difference = (
+    absolute_difference = pd.to_numeric(
         reconciliation[
             "absolute_difference_usd"
-        ]
-        .fillna(0)
-    )
+        ],
+        errors="coerce",
+    ).fillna(0).abs()
 
     reconciliation[
         "financial_exposure_usd"
@@ -567,84 +565,54 @@ def calculate_financial_exposure(
     reconciliation.loc[
         missing_in_accounting_mask,
         "financial_exposure_usd",
-    ] = (
-        source_amount[
-            missing_in_accounting_mask
-        ]
-    )
+    ] = source_amount[
+        missing_in_accounting_mask
+    ]
 
     reconciliation.loc[
         missing_in_source_mask,
         "financial_exposure_usd",
-    ] = (
-        accounting_amount[
-            missing_in_source_mask
-        ]
-    )
+    ] = accounting_amount[
+        missing_in_source_mask
+    ]
+
+    transaction_value = pd.concat(
+        [
+            source_amount,
+            accounting_amount,
+        ],
+        axis=1,
+    ).max(axis=1)
 
     reconciliation.loc[
         duplicate_mask,
         "financial_exposure_usd",
-    ] = (
-        pd.concat(
-            [
-                source_amount[
-                    duplicate_mask
-                ],
-                accounting_amount[
-                    duplicate_mask
-                ],
-            ],
-            axis=1,
-        )
-        .max(axis=1)
-    )
+    ] = transaction_value[
+        duplicate_mask
+    ]
 
     reconciliation.loc[
         mapping_error_mask,
         "financial_exposure_usd",
-    ] = (
-        pd.concat(
-            [
-                source_amount[
-                    mapping_error_mask
-                ],
-                accounting_amount[
-                    mapping_error_mask
-                ],
-            ],
-            axis=1,
-        )
-        .max(axis=1)
-    )
+    ] = transaction_value[
+        mapping_error_mask
+    ]
 
     reconciliation.loc[
         period_mismatch_mask,
         "financial_exposure_usd",
-    ] = (
-        pd.concat(
-            [
-                source_amount[
-                    period_mismatch_mask
-                ],
-                accounting_amount[
-                    period_mismatch_mask
-                ],
-            ],
-            axis=1,
-        )
-        .max(axis=1)
-    )
+    ] = transaction_value[
+        period_mismatch_mask
+    ]
 
     reconciliation[
         "financial_exposure_usd"
-    ] = (
+    ] = pd.to_numeric(
         reconciliation[
             "financial_exposure_usd"
-        ]
-        .fillna(0)
-        .round(2)
-    )
+        ],
+        errors="coerce",
+    ).fillna(0).round(2)
 
     return reconciliation
 
@@ -679,11 +647,12 @@ def assign_severity(
         ]
     )
 
-    exposure = (
+    exposure = pd.to_numeric(
         reconciliation[
             "financial_exposure_usd"
-        ]
-    )
+        ],
+        errors="coerce",
+    ).fillna(0)
 
     matched = (
         reconciliation[
@@ -1009,17 +978,13 @@ def print_summary(
         "\nReconciliation status distribution:"
     )
 
-    print(
-        status_counts
-    )
+    print(status_counts)
 
     print(
         "\nSeverity distribution:"
     )
 
-    print(
-        severity_counts
-    )
+    print(severity_counts)
 
 
 def main() -> None:
