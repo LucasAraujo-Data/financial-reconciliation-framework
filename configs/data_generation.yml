@@ -1,0 +1,27 @@
+random_seed: 42
+
+dataset:
+  number_of_transactions: 50000
+  number_of_contracts: 500
+  number_of_counterparties: 50
+
+date_range:
+  start_date: "2025-01-01"
+  end_date: "2025-12-31"
+
+transaction_types:
+  - PREMIUM
+  - CLAIM
+  - COMMISSION
+
+currencies:
+  - USD
+  - BRL
+  - EUR
+  - GBP
+
+exchange_rates_to_usd:
+  USD: 1.00
+  BRL: 0.20
+  EUR: 1.10
+  GBP: 1.27

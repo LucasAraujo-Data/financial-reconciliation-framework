@@ -132,7 +132,7 @@ celerybeat.pid
 .venv
 env/
 venv/
-ENV/
+ENV/.venv\Scripts\Activate.ps1
 env.bak/
 venv.bak/
 
@@ -182,3 +182,16 @@ cython_debug/
 
 # Visual Studio
 .vs/
+
+# Python virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Visual Studio
+.vs/
+
+# Generated outputs
+outputs/
