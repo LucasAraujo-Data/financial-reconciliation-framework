@@ -1,0 +1,36 @@
+random_seed: 123
+
+anomalies:
+  amount_mismatch:
+    count: 700
+    system: accounting
+    min_change_percentage: 0.01
+    max_change_percentage: 0.10
+
+  missing_in_accounting:
+    count: 450
+
+  missing_in_source:
+    count: 350
+
+  duplicate_transaction:
+    count: 300
+    system: accounting
+
+  fx_difference:
+    count: 250
+    system: accounting
+    min_change_percentage: 0.005
+    max_change_percentage: 0.05
+
+  period_mismatch:
+    count: 200
+    system: accounting
+
+  mapping_error:
+    count: 150
+    system: accounting
+
+  reprocessed_transaction:
+    count: 100
+    system: accounting
