@@ -1,0 +1,24 @@
+matching:
+  primary_key:
+    - transaction_id
+
+tolerances:
+  absolute_amount_usd: 0.01
+  relative_amount_percentage: 0.001
+  exchange_rate: 0.000001
+
+severity:
+  low_max_usd: 100
+  medium_max_usd: 10000
+  high_max_usd: 100000
+
+classification_priority:
+  - DUPLICATE_TRANSACTION
+  - MISSING_IN_SOURCE
+  - MISSING_IN_ACCOUNTING
+  - MAPPING_ERROR
+  - PERIOD_MISMATCH
+  - REPROCESSED_TRANSACTION
+  - FX_DIFFERENCE
+  - AMOUNT_MISMATCH
+  - MATCHED
