@@ -60,7 +60,7 @@ def load_config(config_path: Path) -> dict[str, Any]:
 
 
 def load_transactions(path: Path) -> pd.DataFrame:
-    """Load a transaction dataset with the expected data types."""
+    """Load transaction data using expected data types."""
     return pd.read_csv(
         path,
         dtype={
@@ -82,7 +82,8 @@ def validate_schema(
     dataframe: pd.DataFrame,
     dataset_name: str,
 ) -> None:
-    """Validate that all required columns exist."""
+    """Validate presence of all required columns."""
+
     missing_columns = [
         column
         for column in REQUIRED_COLUMNS
@@ -100,10 +101,16 @@ def identify_duplicate_ids(
     dataframe: pd.DataFrame,
 ) -> set[str]:
     """Return transaction IDs occurring more than once."""
-    counts = dataframe["transaction_id"].value_counts()
+
+    counts = (
+        dataframe["transaction_id"]
+        .value_counts()
+    )
 
     return set(
-        counts[counts > 1].index.astype(str)
+        counts[
+            counts > 1
+        ].index.astype(str)
     )
 
 
@@ -111,11 +118,12 @@ def remove_duplicate_rows_for_matching(
     dataframe: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Keep one representative row per transaction ID.
+    Keep one representative record for each transaction.
 
-    Duplicate status is identified separately so duplicate records do
-    not create many-to-many joins during reconciliation.
+    Duplicate detection occurs separately. Removing repeated rows before
+    joining prevents accidental many-to-many reconciliation joins.
     """
+
     return (
         dataframe
         .drop_duplicates(
@@ -144,7 +152,10 @@ def build_reconciliation_dataset(
         accounting_unique,
         on="transaction_id",
         how="outer",
-        suffixes=("_source", "_accounting"),
+        suffixes=(
+            "_source",
+            "_accounting",
+        ),
         indicator=True,
         validate="one_to_one",
     )
@@ -155,44 +166,73 @@ def build_reconciliation_dataset(
 def calculate_differences(
     reconciliation: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Calculate financial and processing differences."""
+    """Calculate financial, FX and processing differences."""
 
-    reconciliation["amount_difference_usd"] = (
-        reconciliation["converted_amount_usd_accounting"]
-        - reconciliation["converted_amount_usd_source"]
+    reconciliation[
+        "amount_difference_usd"
+    ] = (
+        reconciliation[
+            "converted_amount_usd_accounting"
+        ]
+        - reconciliation[
+            "converted_amount_usd_source"
+        ]
     )
 
-    reconciliation["absolute_difference_usd"] = (
-        reconciliation["amount_difference_usd"].abs()
+    reconciliation[
+        "absolute_difference_usd"
+    ] = (
+        reconciliation[
+            "amount_difference_usd"
+        ].abs()
     )
 
     source_amount = (
-        reconciliation["converted_amount_usd_source"]
-        .abs()
+        reconciliation[
+            "converted_amount_usd_source"
+        ].abs()
     )
 
-    reconciliation["relative_difference"] = np.where(
+    reconciliation[
+        "relative_difference"
+    ] = np.where(
         source_amount > 0,
         (
-            reconciliation["absolute_difference_usd"]
+            reconciliation[
+                "absolute_difference_usd"
+            ]
             / source_amount
         ),
         np.where(
-            reconciliation["absolute_difference_usd"] > 0,
+            reconciliation[
+                "absolute_difference_usd"
+            ] > 0,
             np.inf,
             0.0,
         ),
     )
 
-    reconciliation["exchange_rate_difference"] = (
-        reconciliation["exchange_rate_accounting"]
-        - reconciliation["exchange_rate_source"]
+    reconciliation[
+        "exchange_rate_difference"
+    ] = (
+        reconciliation[
+            "exchange_rate_accounting"
+        ]
+        - reconciliation[
+            "exchange_rate_source"
+        ]
     ).abs()
 
-    reconciliation["processing_delay_hours"] = (
+    reconciliation[
+        "processing_delay_hours"
+    ] = (
         (
-            reconciliation["processing_timestamp_accounting"]
-            - reconciliation["processing_timestamp_source"]
+            reconciliation[
+                "processing_timestamp_accounting"
+            ]
+            - reconciliation[
+                "processing_timestamp_source"
+            ]
         )
         .dt.total_seconds()
         / 3600
@@ -208,9 +248,13 @@ def values_different(
     """
     Compare two Series while treating two missing values as equal.
     """
+
     return ~(
         left.eq(right)
-        | (left.isna() & right.isna())
+        | (
+            left.isna()
+            & right.isna()
+        )
     )
 
 
@@ -219,82 +263,130 @@ def classify_reconciliation_status(
     duplicate_ids: set[str],
     config: dict[str, Any],
 ) -> pd.DataFrame:
-    """Classify each transaction according to reconciliation rules."""
+    """Classify transactions according to reconciliation rules."""
 
     absolute_tolerance = (
-        config["tolerances"]["absolute_amount_usd"]
+        config[
+            "tolerances"
+        ][
+            "absolute_amount_usd"
+        ]
     )
 
     relative_tolerance = (
-        config["tolerances"]["relative_amount_percentage"]
+        config[
+            "tolerances"
+        ][
+            "relative_amount_percentage"
+        ]
     )
 
     fx_tolerance = (
-        config["tolerances"]["exchange_rate"]
+        config[
+            "tolerances"
+        ][
+            "exchange_rate"
+        ]
     )
 
-    reconciliation["reconciliation_status"] = "MATCHED"
+    reconciliation[
+        "reconciliation_status"
+    ] = "MATCHED"
 
     missing_in_accounting = (
-        reconciliation["_merge"] == "left_only"
+        reconciliation["_merge"]
+        == "left_only"
     )
 
     missing_in_source = (
-        reconciliation["_merge"] == "right_only"
+        reconciliation["_merge"]
+        == "right_only"
     )
 
     present_in_both = (
-        reconciliation["_merge"] == "both"
+        reconciliation["_merge"]
+        == "both"
     )
 
     duplicate_transaction = (
-        reconciliation["transaction_id"]
+        reconciliation[
+            "transaction_id"
+        ]
         .astype(str)
         .isin(duplicate_ids)
     )
 
-    mapping_error = (
+    contract_mismatch = (
         present_in_both
-        & (
-            values_different(
-                reconciliation["contract_id_source"],
-                reconciliation["contract_id_accounting"],
-            )
-            | values_different(
-                reconciliation["counterparty_id_source"],
-                reconciliation["counterparty_id_accounting"],
-            )
+        & values_different(
+            reconciliation[
+                "contract_id_source"
+            ],
+            reconciliation[
+                "contract_id_accounting"
+            ],
         )
+    )
+
+    counterparty_mismatch = (
+        present_in_both
+        & values_different(
+            reconciliation[
+                "counterparty_id_source"
+            ],
+            reconciliation[
+                "counterparty_id_accounting"
+            ],
+        )
+    )
+
+    mapping_error = (
+        contract_mismatch
+        | counterparty_mismatch
     )
 
     period_mismatch = (
         present_in_both
         & values_different(
-            reconciliation["accounting_period_source"],
-            reconciliation["accounting_period_accounting"],
+            reconciliation[
+                "accounting_period_source"
+            ],
+            reconciliation[
+                "accounting_period_accounting"
+            ],
         )
     )
 
     transaction_type_mismatch = (
         present_in_both
         & values_different(
-            reconciliation["transaction_type_source"],
-            reconciliation["transaction_type_accounting"],
+            reconciliation[
+                "transaction_type_source"
+            ],
+            reconciliation[
+                "transaction_type_accounting"
+            ],
         )
     )
 
     currency_mismatch = (
         present_in_both
         & values_different(
-            reconciliation["currency_source"],
-            reconciliation["currency_accounting"],
+            reconciliation[
+                "currency_source"
+            ],
+            reconciliation[
+                "currency_accounting"
+            ],
         )
     )
 
     fx_difference = (
         present_in_both
         & (
-            reconciliation["exchange_rate_difference"]
+            reconciliation[
+                "exchange_rate_difference"
+            ]
             > fx_tolerance
         )
         & ~mapping_error
@@ -306,14 +398,16 @@ def classify_reconciliation_status(
     amount_difference = (
         present_in_both
         & (
-            (
-                reconciliation["absolute_difference_usd"]
-                > absolute_tolerance
-            )
-            & (
-                reconciliation["relative_difference"]
-                > relative_tolerance
-            )
+            reconciliation[
+                "absolute_difference_usd"
+            ]
+            > absolute_tolerance
+        )
+        & (
+            reconciliation[
+                "relative_difference"
+            ]
+            > relative_tolerance
         )
         & ~fx_difference
         & ~mapping_error
@@ -325,7 +419,9 @@ def classify_reconciliation_status(
     reprocessed_transaction = (
         present_in_both
         & (
-            reconciliation["processing_delay_hours"]
+            reconciliation[
+                "processing_delay_hours"
+            ]
             >= 24
         )
         & ~mapping_error
@@ -336,8 +432,8 @@ def classify_reconciliation_status(
         & ~currency_mismatch
     )
 
-    # Lowest-priority classifications are assigned first.
-    # Higher-priority rules overwrite them afterward.
+    # Rules are intentionally applied from lower to higher priority.
+    # Higher-priority classifications overwrite lower-priority ones.
 
     reconciliation.loc[
         amount_difference,
@@ -360,9 +456,11 @@ def classify_reconciliation_status(
     ] = "PERIOD_MISMATCH"
 
     reconciliation.loc[
-        mapping_error
-        | transaction_type_mismatch
-        | currency_mismatch,
+        (
+            mapping_error
+            | transaction_type_mismatch
+            | currency_mismatch
+        ),
         "reconciliation_status",
     ] = "MAPPING_ERROR"
 
@@ -384,38 +482,223 @@ def classify_reconciliation_status(
     return reconciliation
 
 
+def calculate_financial_exposure(
+    reconciliation: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Calculate the financial amount potentially affected by each exception.
+
+    Financial exposure is intentionally different from the mathematical
+    difference between systems.
+    """
+
+    source_amount = (
+        reconciliation[
+            "converted_amount_usd_source"
+        ]
+        .abs()
+    )
+
+    accounting_amount = (
+        reconciliation[
+            "converted_amount_usd_accounting"
+        ]
+        .abs()
+    )
+
+    absolute_difference = (
+        reconciliation[
+            "absolute_difference_usd"
+        ]
+        .fillna(0)
+    )
+
+    reconciliation[
+        "financial_exposure_usd"
+    ] = absolute_difference
+
+    matched_mask = (
+        reconciliation[
+            "reconciliation_status"
+        ]
+        == "MATCHED"
+    )
+
+    missing_in_accounting_mask = (
+        reconciliation[
+            "reconciliation_status"
+        ]
+        == "MISSING_IN_ACCOUNTING"
+    )
+
+    missing_in_source_mask = (
+        reconciliation[
+            "reconciliation_status"
+        ]
+        == "MISSING_IN_SOURCE"
+    )
+
+    duplicate_mask = (
+        reconciliation[
+            "reconciliation_status"
+        ]
+        == "DUPLICATE_TRANSACTION"
+    )
+
+    mapping_error_mask = (
+        reconciliation[
+            "reconciliation_status"
+        ]
+        == "MAPPING_ERROR"
+    )
+
+    period_mismatch_mask = (
+        reconciliation[
+            "reconciliation_status"
+        ]
+        == "PERIOD_MISMATCH"
+    )
+
+    reconciliation.loc[
+        matched_mask,
+        "financial_exposure_usd",
+    ] = 0.0
+
+    reconciliation.loc[
+        missing_in_accounting_mask,
+        "financial_exposure_usd",
+    ] = (
+        source_amount[
+            missing_in_accounting_mask
+        ]
+    )
+
+    reconciliation.loc[
+        missing_in_source_mask,
+        "financial_exposure_usd",
+    ] = (
+        accounting_amount[
+            missing_in_source_mask
+        ]
+    )
+
+    reconciliation.loc[
+        duplicate_mask,
+        "financial_exposure_usd",
+    ] = (
+        pd.concat(
+            [
+                source_amount[
+                    duplicate_mask
+                ],
+                accounting_amount[
+                    duplicate_mask
+                ],
+            ],
+            axis=1,
+        )
+        .max(axis=1)
+    )
+
+    reconciliation.loc[
+        mapping_error_mask,
+        "financial_exposure_usd",
+    ] = (
+        pd.concat(
+            [
+                source_amount[
+                    mapping_error_mask
+                ],
+                accounting_amount[
+                    mapping_error_mask
+                ],
+            ],
+            axis=1,
+        )
+        .max(axis=1)
+    )
+
+    reconciliation.loc[
+        period_mismatch_mask,
+        "financial_exposure_usd",
+    ] = (
+        pd.concat(
+            [
+                source_amount[
+                    period_mismatch_mask
+                ],
+                accounting_amount[
+                    period_mismatch_mask
+                ],
+            ],
+            axis=1,
+        )
+        .max(axis=1)
+    )
+
+    reconciliation[
+        "financial_exposure_usd"
+    ] = (
+        reconciliation[
+            "financial_exposure_usd"
+        ]
+        .fillna(0)
+        .round(2)
+    )
+
+    return reconciliation
+
+
 def assign_severity(
     reconciliation: pd.DataFrame,
     config: dict[str, Any],
 ) -> pd.DataFrame:
-    """Assign severity based on financial exposure."""
+    """Assign severity using financial exposure."""
 
     low_max = (
-        config["severity"]["low_max_usd"]
+        config[
+            "severity"
+        ][
+            "low_max_usd"
+        ]
     )
 
     medium_max = (
-        config["severity"]["medium_max_usd"]
+        config[
+            "severity"
+        ][
+            "medium_max_usd"
+        ]
     )
 
     high_max = (
-        config["severity"]["high_max_usd"]
+        config[
+            "severity"
+        ][
+            "high_max_usd"
+        ]
     )
 
     exposure = (
-        reconciliation["absolute_difference_usd"]
-        .fillna(0)
+        reconciliation[
+            "financial_exposure_usd"
+        ]
     )
 
-    reconciliation["severity"] = np.select(
+    matched = (
+        reconciliation[
+            "reconciliation_status"
+        ]
+        == "MATCHED"
+    )
+
+    reconciliation[
+        "severity"
+    ] = np.select(
         [
-            reconciliation["reconciliation_status"]
-            == "MATCHED",
-
+            matched,
             exposure <= low_max,
-
             exposure <= medium_max,
-
             exposure <= high_max,
         ],
         [
@@ -433,99 +716,158 @@ def assign_severity(
 def build_final_output(
     reconciliation: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Select and organize fields for the final reconciliation table."""
+    """Build the final reconciliation result table."""
 
     output = pd.DataFrame(
         {
             "transaction_id":
-                reconciliation["transaction_id"],
+                reconciliation[
+                    "transaction_id"
+                ],
 
             "reconciliation_status":
-                reconciliation["reconciliation_status"],
+                reconciliation[
+                    "reconciliation_status"
+                ],
 
             "severity":
-                reconciliation["severity"],
+                reconciliation[
+                    "severity"
+                ],
 
             "contract_id_source":
-                reconciliation["contract_id_source"],
+                reconciliation[
+                    "contract_id_source"
+                ],
 
             "contract_id_accounting":
-                reconciliation["contract_id_accounting"],
+                reconciliation[
+                    "contract_id_accounting"
+                ],
 
             "counterparty_id_source":
-                reconciliation["counterparty_id_source"],
+                reconciliation[
+                    "counterparty_id_source"
+                ],
 
             "counterparty_id_accounting":
-                reconciliation["counterparty_id_accounting"],
+                reconciliation[
+                    "counterparty_id_accounting"
+                ],
 
             "transaction_type_source":
-                reconciliation["transaction_type_source"],
+                reconciliation[
+                    "transaction_type_source"
+                ],
 
             "transaction_type_accounting":
-                reconciliation["transaction_type_accounting"],
+                reconciliation[
+                    "transaction_type_accounting"
+                ],
 
             "accounting_period_source":
-                reconciliation["accounting_period_source"],
+                reconciliation[
+                    "accounting_period_source"
+                ],
 
             "accounting_period_accounting":
-                reconciliation["accounting_period_accounting"],
+                reconciliation[
+                    "accounting_period_accounting"
+                ],
 
             "currency_source":
-                reconciliation["currency_source"],
+                reconciliation[
+                    "currency_source"
+                ],
 
             "currency_accounting":
-                reconciliation["currency_accounting"],
+                reconciliation[
+                    "currency_accounting"
+                ],
 
             "original_amount_source":
-                reconciliation["original_amount_source"],
+                reconciliation[
+                    "original_amount_source"
+                ],
 
             "original_amount_accounting":
-                reconciliation["original_amount_accounting"],
+                reconciliation[
+                    "original_amount_accounting"
+                ],
 
             "exchange_rate_source":
-                reconciliation["exchange_rate_source"],
+                reconciliation[
+                    "exchange_rate_source"
+                ],
 
             "exchange_rate_accounting":
-                reconciliation["exchange_rate_accounting"],
+                reconciliation[
+                    "exchange_rate_accounting"
+                ],
 
             "converted_amount_usd_source":
-                reconciliation["converted_amount_usd_source"],
+                reconciliation[
+                    "converted_amount_usd_source"
+                ],
 
             "converted_amount_usd_accounting":
-                reconciliation["converted_amount_usd_accounting"],
+                reconciliation[
+                    "converted_amount_usd_accounting"
+                ],
 
             "amount_difference_usd":
-                reconciliation["amount_difference_usd"],
+                reconciliation[
+                    "amount_difference_usd"
+                ],
 
             "absolute_difference_usd":
-                reconciliation["absolute_difference_usd"],
+                reconciliation[
+                    "absolute_difference_usd"
+                ],
+
+            "financial_exposure_usd":
+                reconciliation[
+                    "financial_exposure_usd"
+                ],
 
             "relative_difference":
-                reconciliation["relative_difference"],
+                reconciliation[
+                    "relative_difference"
+                ],
 
             "processing_timestamp_source":
-                reconciliation["processing_timestamp_source"],
+                reconciliation[
+                    "processing_timestamp_source"
+                ],
 
             "processing_timestamp_accounting":
-                reconciliation["processing_timestamp_accounting"],
+                reconciliation[
+                    "processing_timestamp_accounting"
+                ],
 
             "processing_delay_hours":
-                reconciliation["processing_delay_hours"],
+                reconciliation[
+                    "processing_delay_hours"
+                ],
         }
     )
 
-    return output.sort_values(
-        [
-            "reconciliation_status",
-            "transaction_id",
-        ]
-    ).reset_index(drop=True)
+    return (
+        output
+        .sort_values(
+            [
+                "reconciliation_status",
+                "transaction_id",
+            ]
+        )
+        .reset_index(drop=True)
+    )
 
 
 def validate_output(
     reconciliation_results: pd.DataFrame,
 ) -> None:
-    """Validate structural properties of reconciliation output."""
+    """Validate structural properties of reconciliation results."""
 
     if reconciliation_results.empty:
         raise ValueError(
@@ -547,12 +889,29 @@ def validate_output(
             "Some transactions have no reconciliation status."
         )
 
+    if reconciliation_results[
+        "financial_exposure_usd"
+    ].isna().any():
+        raise ValueError(
+            "Some transactions have no financial exposure value."
+        )
+
+    if (
+        reconciliation_results[
+            "financial_exposure_usd"
+        ]
+        < 0
+    ).any():
+        raise ValueError(
+            "Financial exposure cannot be negative."
+        )
+
 
 def save_results(
     dataframe: pd.DataFrame,
     output_path: Path,
 ) -> None:
-    """Save reconciliation results."""
+    """Save reconciliation results to CSV."""
 
     output_path.parent.mkdir(
         parents=True,
@@ -568,7 +927,7 @@ def save_results(
 def print_summary(
     reconciliation_results: pd.DataFrame,
 ) -> None:
-    """Print a reconciliation execution summary."""
+    """Print reconciliation execution summary."""
 
     total_transactions = len(
         reconciliation_results
@@ -577,6 +936,13 @@ def print_summary(
     status_counts = (
         reconciliation_results[
             "reconciliation_status"
+        ]
+        .value_counts()
+    )
+
+    severity_counts = (
+        reconciliation_results[
+            "severity"
         ]
         .value_counts()
     )
@@ -599,6 +965,17 @@ def print_summary(
         * 100
     )
 
+    total_exception_exposure = (
+        reconciliation_results.loc[
+            reconciliation_results[
+                "reconciliation_status"
+            ]
+            != "MATCHED",
+            "financial_exposure_usd",
+        ]
+        .sum()
+    )
+
     print(
         "\nReconciliation completed successfully."
     )
@@ -619,18 +996,34 @@ def print_summary(
     )
 
     print(
-        f"Match rate: {match_rate:.2f}%"
+        f"Match rate: "
+        f"{match_rate:.2f}%"
+    )
+
+    print(
+        f"Total exception exposure: "
+        f"${total_exception_exposure:,.2f}"
     )
 
     print(
         "\nReconciliation status distribution:"
     )
 
-    print(status_counts)
+    print(
+        status_counts
+    )
+
+    print(
+        "\nSeverity distribution:"
+    )
+
+    print(
+        severity_counts
+    )
 
 
 def main() -> None:
-    """Execute the financial reconciliation process."""
+    """Execute the financial reconciliation pipeline."""
 
     config = load_config(
         CONFIG_PATH
@@ -680,6 +1073,10 @@ def main() -> None:
         reconciliation=reconciliation,
         duplicate_ids=duplicate_ids,
         config=config,
+    )
+
+    reconciliation = calculate_financial_exposure(
+        reconciliation
     )
 
     reconciliation = assign_severity(
