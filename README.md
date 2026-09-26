@@ -434,7 +434,8 @@ This provides a familiar investigation format for Finance, Accounting, and Audit
 | Area | Technology |
 |---|---|
 | Programming | Python |
-| Data Processing | Pandas |
+| Data Processing | Pandas / DuckDB |
+| Analytics | SQL |
 | Configuration | YAML |
 | Testing | Pytest |
 | Reporting | Excel / OpenPyXL |
@@ -476,6 +477,12 @@ financial-reconciliation-framework/
 │   └── data_dictionary.md
 │
 ├── outputs/
+│
+├── sql/
+│   ├── 01_reconciliation_summary.sql
+│   ├── 02_exception_analysis.sql
+│   ├── 03_financial_exposure_analysis.sql
+│   └── 04_counterparty_risk_analysis.sql
 │
 ├── src/
 │   ├── data_generation/
@@ -655,7 +662,6 @@ Potential extensions include:
 - Aggregate and composite-key reconciliation
 - Configurable multi-stage matching strategies
 - Database-backed processing
-- SQL reconciliation implementation
 - Automated pipeline orchestration
 - Structured application logging
 - CI/CD with GitHub Actions
