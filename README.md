@@ -536,29 +536,31 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Generate Synthetic Transactions
+### 4. Run the Complete Pipeline
+
+Execute the full reconciliation workflow from the project root:
 
 ```bash
-python src/data_generation/generate_transactions.py
+python -m src.pipeline
 ```
 
-### 5. Inject Reconciliation Anomalies
+The pipeline automatically:
+
+1. Generates synthetic financial transactions
+2. Injects controlled reconciliation anomalies
+3. Executes the reconciliation engine
+4. Generates analytical reporting datasets
+5. Creates the audit-ready Excel exception report
+
+### 5. Run Automated Tests
+
+Run the complete automated test suite:
 
 ```bash
-python src/data_generation/inject_anomalies.py
+python -m pytest
 ```
 
-### 6. Run the Reconciliation Engine
-
-```bash
-python src/reconciliation/reconciliation_engine.py
-```
-
-### 7. Run Automated Tests
-
-```bash
-pytest
-```
+The test suite includes data quality, integration, and unit tests covering anomaly generation, reconciliation logic, financial exposure, and severity classification.
 
 > Commands above assume execution from the repository root.
 
