@@ -98,6 +98,21 @@ The detailed transaction table provides a direct path from executive-level metri
 
 ---
 
+## Live Interactive Dashboard
+
+Explore the interactive Power BI dashboard:
+
+**[Open Interactive Power BI Dashboard](https://app.powerbi.com/view?r=eyJrIjoiZWI1NDRiNGMtZDJkYi00MmI0LWI3YTktYWNlNjI4ZDg2YTljIiwidCI6ImJiZTBmNmVjLTZjNGQtNGMxMi05YjdkLWUyYTEzNWE2Yjk5NSJ9)**
+
+The dashboard provides an interactive view of reconciliation performance,
+financial exposure, exception severity, monthly trends, and counterparty risk.
+
+> **Note:** All data displayed in this dashboard is synthetic and was generated
+> specifically for this portfolio project. No confidential or proprietary
+> financial data is included.
+
+---
+
 ## Project Architecture
 
 The framework separates data generation, validation, reconciliation, exception analysis, and reporting into distinct components.
@@ -409,7 +424,7 @@ The goal is not only to produce reconciliation results, but to provide evidence 
 Tests can be executed with:
 
 ```bash
-pytest
+python -m pytest
 ```
 
 ---
@@ -486,11 +501,9 @@ financial-reconciliation-framework/
 │
 ├── src/
 │   ├── data_generation/
-│   ├── ingestion/
-│   ├── validation/
 │   ├── reconciliation/
 │   ├── reporting/
-│   └── utils/
+│   └── pipeline.py      
 │
 ├── tests/
 │   ├── unit/
@@ -664,7 +677,6 @@ Potential extensions include:
 - Aggregate and composite-key reconciliation
 - Configurable multi-stage matching strategies
 - Database-backed processing
-- Automated pipeline orchestration
 - Structured application logging
 - CI/CD with GitHub Actions
 - Docker containerization
