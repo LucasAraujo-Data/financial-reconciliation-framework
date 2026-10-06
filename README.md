@@ -98,7 +98,7 @@ The detailed transaction table provides a direct path from executive-level metri
 
 ---
 
-## Live Interactive Dashboard
+### Live Interactive Dashboard
 
 Explore the interactive Power BI dashboard:
 
